@@ -1,3 +1,4 @@
+```groovy
 pipeline {
 
     agent any
@@ -13,26 +14,26 @@ pipeline {
 
     stages {
 
-        stage('git checkout') {
+        stage('Git Checkout') {
             steps {
                 git branch: 'main',
                     url: 'https://github.com/Kirtika0/Ekart.git'
             }
         }
 
-        stage('compile') {
+        stage('Compile') {
             steps {
                 sh 'mvn compile'
             }
         }
 
-        stage('unit tests') {
+        stage('Unit Tests') {
             steps {
                 sh 'mvn test -DskipTests=true'
             }
         }
 
-        stage('SonarQube analysis') {
+        stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('sonar-scanner') {
                     sh '''
@@ -48,9 +49,8 @@ pipeline {
         stage('OWASP Dependency Check') {
             steps {
                 dependencyCheck(
-                    additionalArguments: '',
-                    nvdCredentialsId: 'nvd-api-key',
-                    odcInstallation: 'DC'
+                    odcInstallation: 'DC',
+                    nvdCredentialsId: 'nvd-api-key'
                 )
             }
         }
@@ -61,7 +61,7 @@ pipeline {
             }
         }
 
-        stage('deploy to Nexus') {
+        stage('Deploy to Nexus') {
             steps {
                 withMaven(
                     globalMavenSettingsConfig: 'global-maven',
@@ -75,7 +75,7 @@ pipeline {
             }
         }
 
-        stage('build and Tag docker image') {
+        stage('Build and Tag Docker Image') {
             steps {
                 script {
                     sh 'docker build -t kirtika0/ekart:latest -f docker/Dockerfile .'
@@ -83,16 +83,22 @@ pipeline {
             }
         }
 
-        stage('Push image to Hub') {
+        stage('Push Image to Docker Hub') {
             steps {
                 script {
+
                     withCredentials([
                         string(
                             credentialsId: 'dockerhub-pwd',
                             variable: 'dockerhubpwd'
                         )
                     ]) {
-                        sh 'echo "$dockerhubpwd" | docker login -u kirtika0 --password-stdin'
+
+                        sh '''
+                            echo "$dockerhubpwd" | docker login \
+                            -u kirtika0 \
+                            --password-stdin
+                        '''
                     }
 
                     sh 'docker push kirtika0/ekart:latest'
@@ -100,20 +106,26 @@ pipeline {
             }
         }
 
-        stage('EKS and Kubectl configuration') {
+        stage('EKS and Kubectl Configuration') {
             steps {
                 script {
-                    sh 'aws eks update-kubeconfig --region ap-south-1 --name project-cluster'
+                    sh '''
+                        aws eks update-kubeconfig \
+                        --region ap-south-1 \
+                        --name project-cluster
+                    '''
                 }
             }
         }
 
-        stage('Deploy to k8s') {
+        stage('Deploy to Kubernetes') {
             steps {
                 script {
                     sh 'kubectl apply -f deploymentservice.yml'
                 }
             }
         }
+
     }
 }
+```
