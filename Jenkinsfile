@@ -4,7 +4,6 @@ pipeline {
 
     environment {
         SCANNER_HOME = tool 'sonar-scanner'
-        NVD_API_KEY = credentials('nvd-api-key')
     }
 
     tools {
@@ -29,7 +28,7 @@ pipeline {
 
         stage('Unit Tests') {
             steps {
-                sh 'mvn test -DskipTests=true'
+                sh 'mvn test'
             }
         }
 
@@ -49,8 +48,8 @@ pipeline {
         stage('OWASP Dependency Check') {
             steps {
                 dependencyCheck(
-                    additionalArguments: "--nvdApiKey ${NVD_API_KEY}",
-                    odcInstallation: 'DC'
+                    odcInstallation: 'DC',
+                    nvdCredentialsId: 'nvd-api-key'
                 )
             }
         }
@@ -77,50 +76,42 @@ pipeline {
 
         stage('Build and Tag Docker Image') {
             steps {
-                script {
-                    sh 'docker build -t kirtika0/ekart:latest -f docker/Dockerfile .'
-                }
+                sh 'docker build -t kirtika0/ekart:latest -f docker/Dockerfile .'
             }
         }
 
         stage('Push Image to Docker Hub') {
             steps {
-                script {
-                    withCredentials([
-                        string(
-                            credentialsId: 'dockerhub-pwd',
-                            variable: 'dockerhubpwd'
-                        )
-                    ]) {
-                        sh '''
-                            echo "$dockerhubpwd" | docker login \
-                            -u kirtika0 \
-                            --password-stdin
-                        '''
-                    }
-
-                    sh 'docker push kirtika0/ekart:latest'
+                withCredentials([
+                    string(
+                        credentialsId: 'dockerhub-pwd',
+                        variable: 'dockerhubpwd'
+                    )
+                ]) {
+                    sh '''
+                        echo "$dockerhubpwd" | docker login \
+                        -u kirtika0 \
+                        --password-stdin
+                    '''
                 }
+
+                sh 'docker push kirtika0/ekart:latest'
             }
         }
 
         stage('EKS and Kubectl Configuration') {
             steps {
-                script {
-                    sh '''
-                        aws eks update-kubeconfig \
-                        --region ap-south-1 \
-                        --name project-cluster
-                    '''
-                }
+                sh '''
+                    aws eks update-kubeconfig \
+                    --region ap-south-1 \
+                    --name project-cluster
+                '''
             }
         }
 
         stage('Deploy to Kubernetes') {
             steps {
-                script {
-                    sh 'kubectl apply -f deploymentservice.yml'
-                }
+                sh 'kubectl apply -f deploymentservice.yml'
             }
         }
     }
